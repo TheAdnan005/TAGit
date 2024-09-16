@@ -44,9 +44,3 @@ The dataset includes:
   - `csv`
   - `logging`
 
-### Installation
-
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/yourusername/your-repository.git
-   cd your-repository
