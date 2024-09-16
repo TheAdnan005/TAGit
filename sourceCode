@@ -1,0 +1,72 @@
+!pip install paddlepaddle
+!pip install paddleocr
+from google.colab import drive
+drive.mount('/content/drive')
+import logging
+import os
+import requests
+import re
+import cv2
+import numpy as np
+import pandas as pd
+import csv
+from collections import OrderedDict
+from paddleocr import PaddleOCR
+
+# Set up logging to capture exceptions
+logging.basicConfig(filename='/content/drive/MyDrive/ocr_errors.log', level=logging.ERROR)
+
+# Disable PaddleOCR debug logs
+logging.getLogger('ppocr').setLevel(logging.ERROR)
+
+# Initialize PaddleOCR with angle classification
+ocr_reader = PaddleOCR(use_angle_cls=True, lang='en')
+
+entity_unit_map = {
+    'width': {'centimetre', 'cm', 'foot', 'ft', 'inch', 'in', 'metre', 'm', 'millimetre', 'mm', 'yard', 'yd'},
+    'depth': {'centimetre', 'cm', 'foot', 'ft', 'inch', 'in', 'metre', 'm', 'millimetre', 'mm', 'yard', 'yd'},
+    'height': {'centimetre', 'cm', 'foot', 'ft', 'inch', 'in', 'metre', 'm', 'millimetre', 'mm', 'yard', 'yd'},
+    'item_weight': {'gram', 'g', 'kilogram', 'kg', 'microgram', 'µg', 'milligram', 'mg', 'ounce', 'oz', 'pound', 'lb', 'ton', 't'},
+    'maximum_weight_recommendation': {'gram', 'g', 'kilogram', 'kg', 'microgram', 'µg', 'milligram', 'mg', 'ounce', 'oz', 'pound', 'lb', 'ton', 't'},
+    'voltage': {'kilovolt', 'kV', 'millivolt', 'mV', 'volt', 'V'},
+    'wattage': {'kilowatt', 'kW', 'watt', 'W'},
+    'item_volume': {
+        'centilitre', 'cl', 'cubic foot', 'cu ft', 'cubic inch', 'cu in', 'cup', 'c', 'decilitre', 'dl', 'fluid ounce', 'fl oz',
+        'gallon', 'gal', 'imperial gallon', 'imp gal', 'litre', 'l', 'microlitre', 'µl', 'millilitre', 'ml', 'pint', 'pt', 'quart', 'qt'
+    }
+}
+
+allowed_units = {unit for entity in entity_unit_map for unit in entity_unit_map[entity]}
+
+def convert_units_to_full_form(detected_units):
+    '''Converts abbreviated units to their correct full form based on a specific mapping.'''
+    try:
+        full_form_units = []
+
+        reverse_unit_map = {
+            # Length units
+            'cm': 'centimetre', 'm': 'metre', 'mm': 'millimetre', 'ft': 'foot', 'in': 'inch', 'yd': 'yard',
+            # Weight units
+            'g': 'gram', 'kg': 'kilogram', 'mg': 'milligram', 'oz': 'ounce', 'lb': 'pound', 't': 'ton',
+            # Volume units
+            'ml': 'millilitre', 'l': 'litre', 'cl': 'centilitre', 'dl': 'decilitre', 'gal': 'gallon',
+            'pt': 'pint', 'qt': 'quart', 'fl oz': 'fluid ounce', 'cu ft': 'cubic foot', 'cu in': 'cubic inch',
+            # Power units
+            'W': 'watt', 'kW': 'kilowatt', 'MW': 'megawatt',
+            # Voltage units
+            'V': 'volt', 'kV': 'kilovolt', 'mV': 'millivolt',
+        }
+
+        for value, unit in detected_units:
+            full_unit = reverse_unit_map.get(unit.lower(), unit)  # Convert to lowercase for comparison
+            full_form_units.append(f"{float(value)} {full_unit}")
+
+        if full_form_units:
+            return full_form_units[0]
+        else:
+            return None
+    except Exception as e:
+        logging.error(f"Error converting units to full form: {e}")
+        return None
+
+
